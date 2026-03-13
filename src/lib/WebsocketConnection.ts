@@ -29,7 +29,7 @@
  * @module WebsocketConnection
  */
 
-import { wait } from '@mono-fleet/common-utils';
+import { wait } from './utils';
 import { closeSnackbar, enqueueSnackbar } from 'notistack';
 import { v4 as uuidv4 } from 'uuid';
 import { CONNECTION_CLEANUP_DELAY, HEARTBEAT_CONFIG, RECONNECTION_CONFIG, WEBSOCKET_CLOSE_CODES } from './constants';
@@ -51,6 +51,17 @@ import {
 import { WebsocketSubscriptionApi } from './WebsocketSubscriptionApi';
 
 /**
+ * Optional custom logger for WebSocket connection events.
+ * Set via {@link WebsocketConnection.setCustomLogger}.
+ */
+export interface WebsocketLogger {
+  /** Logs connection events (e.g. ws-connect, ws-close, ws-error, ws-reconnect) */
+  log?(level: 'debug' | 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>): void;
+  /** Called when max retry attempts exceeded; use to trigger token refresh or other recovery */
+  connectionFailed?: (url: string, retries: number, subscriptions: number) => void;
+}
+
+/**
  * Manages a WebSocket connection with automatic reconnection, heartbeat monitoring, and URI-based message routing.
  *
  * This class provides:
@@ -58,7 +69,7 @@ import { WebsocketSubscriptionApi } from './WebsocketSubscriptionApi';
  * - Heartbeat/ping mechanism to keep connections alive
  * - Multiple URI API registration for routing messages to different handlers
  * - Online/offline detection and handling
- * - Integration with Datadog RUM for monitoring
+ * - Custom logger support for monitoring (configure via {@link setCustomLogger}
  * - User notifications for connection status
  *
  * @example
@@ -74,13 +85,10 @@ import { WebsocketSubscriptionApi } from './WebsocketSubscriptionApi';
  * });
  * connection.addListener(uriApi);
  * ```
+ *
+ * @see {@link websocketConnectionsReconnect} - Reconnect all connections (e.g. on auth change)
+ * @see {@link setCustomLogger} - Configure logging and connection-failed callback
  */
-/** Optional custom logger for WebSocket connection events. Set via {@link WebsocketConnection.setCustomLogger}. */
-export interface WebsocketLogger {
-  log?(level: 'debug' | 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>): void;
-  connectionFailed?: (url: string, retries: number, subscriptions: number) => void;
-}
-
 export class WebsocketConnection {
   // ─── Static: Custom Logger ───────────────────────────────────────────
 
@@ -179,13 +187,14 @@ export class WebsocketConnection {
   // ─── Public API: URI Management ─────────────────────────────────────
 
   /**
-   * Retrieves a registered URI API instance by its unique key.
+   * Retrieves a registered subscription API by its unique key.
+   * Message APIs are not returned; use {@link getWebsocketMessageApiByKey} for those.
    *
-   * @template TData - The type of data stored in the WebSocket URI API store
-   * @param key - The unique key identifying the URI API (must match the key used in {@link addListener})
-   * @returns The {@link WebsocketSubscriptionApi} instance if found, or `undefined` if no URI API exists with the given key
+   * @template TData - The type of data stored in the subscription store
+   * @param key - The unique key identifying the subscription (must match the key used in {@link addListener})
+   * @returns The {@link WebsocketSubscriptionApi} instance if found, or `undefined`
    *
-   * @see {@link addListener} - Method to register a new URI API
+   * @see {@link addListener} - Method to register a listener
    * @see {@link getWebsocketUriApiByKey} - Global function to search across all connections
    */
   public getUriApiByKey = <TData = unknown>(key: string): WebsocketSubscriptionApi<TData, any> | undefined => {
@@ -199,13 +208,12 @@ export class WebsocketConnection {
   /**
    * Registers a listener (subscription or message API) with this connection.
    *
-   * Initiates the WebSocket connection if not already connected. Each listener can have
-   * its own message handlers. Sets up the send callback so the listener can
-   * transmit messages through this connection.
+   * Initiates the WebSocket connection if not already connected. Sets up the send callback
+   * so the listener can transmit messages through this connection.
    *
    * If the socket is already open, immediately notifies subscription listeners via `onOpen`.
    *
-   * @param listener - The {@link WebsocketListener} to register (subscription or message API)
+   * @param listener - The {@link WebsocketListener} to register
    * @returns The registered listener
    */
   public addListener = (listener: WebsocketListener) => {
@@ -224,8 +232,8 @@ export class WebsocketConnection {
    * Unregisters a listener and schedules connection cleanup if no listeners remain.
    *
    * Disconnects the listener's send callback and removes it from the routing map.
-   * The WebSocket connection will be closed after a delay if no other listeners
-   * are registered.
+   * The WebSocket connection will be closed after {@link CONNECTION_CLEANUP_DELAY} if no other
+   * listeners are registered.
    *
    * @param listener - The listener instance to unregister
    */
@@ -239,6 +247,7 @@ export class WebsocketConnection {
     this.scheduleConnectionCleanup();
   };
 
+  /** Schedules connection close after {@link CONNECTION_CLEANUP_DELAY} when no listeners remain. */
   private scheduleConnectionCleanup = () => {
     this.closeConnectionTimeOut = setTimeout(
       () => {
@@ -255,8 +264,8 @@ export class WebsocketConnection {
   /**
    * Replaces the WebSocket URL and re-establishes the connection.
    *
-   * Closes the current connection, resets all registered URI APIs, and reconnects
-   * using the new URL after a short delay (1 second) to allow cleanup to complete.
+   * Closes the current connection, resets all listeners, and reconnects using the new URL
+   * after a short delay (1 second) to allow cleanup to complete.
    *
    * @param newUrl - The new WebSocket URL to connect to
    */
@@ -272,8 +281,9 @@ export class WebsocketConnection {
    *
    * Tears down the current connection by removing all event listeners, closing the socket,
    * and resetting all registered URI APIs. After a short delay (1 second) to allow cleanup,
-   * re-establishes the connection. Typically triggered by {@link WebsocketProvider} when
-   * the user's authentication context (region/role) changes.
+   * re-establishes the connection. Typically triggered by {@link websocketConnectionsReconnect}
+   * when {@link useReconnectWebsocketConnections} (from @mono-fleet/common-components) detects
+   * the user's authentication context (region/role) change.
    *
    * Guarded by {@link _isReconnecting} in {@link teardownAndReconnect} — if a `replaceUrl`
    * layout effect already started a reconnect cycle in the same render, this call is a no-op.
@@ -299,8 +309,8 @@ export class WebsocketConnection {
 
   /**
    * Establishes the WebSocket connection if not already connecting or connected.
-   * Only creates a socket if at least one registered URI API or Message API is enabled.
-   * Sets up all event listeners and logs the connection attempt to Datadog RUM.
+   * Only creates a socket if at least one registered listener (subscription or message API) is enabled.
+   * Sets up all event listeners and logs the connection attempt via the custom logger if configured.
    */
   private connect = () => {
     const hasEnabledListener = this._listeners.values().some((listener) => listener.isEnabled);
@@ -333,14 +343,14 @@ export class WebsocketConnection {
   };
 
   /**
-   * Tears down the current connection, resets all URI APIs, waits for cleanup to complete,
+   * Tears down the current connection, resets all listeners, waits for cleanup to complete,
    * and re-establishes the connection. Shared by {@link replaceUrl} and {@link reconnect}.
    *
    * Guarded by {@link _isReconnecting} to prevent concurrent cycles. When
-   * `selectedRegionRole` changes, both the hook's `replaceUrl` layout effect and the
-   * provider's `reconnect` effect fire in the same render. Because layout effects run
-   * before regular effects, `replaceUrl` wins and updates the URL first; the provider's
-   * call is safely skipped.
+   * `selectedRegionRole` changes, both the hook's `replaceUrl` layout effect and
+   * `useReconnectWebsocketConnections`'s reconnect effect may fire. Because layout effects run
+   * before regular effects, `replaceUrl` wins and updates the URL first; the reconnect call
+   * is safely skipped.
    */
   private teardownAndReconnect = async () => {
     if (this._isReconnecting) return;
@@ -359,7 +369,7 @@ export class WebsocketConnection {
   };
 
   /**
-   * Cleans up the WebSocket connection when no URI APIs are registered.
+   * Cleans up the WebSocket connection when no listeners are registered.
    */
   private cleanupConnection = () => {
     if (this._listeners.size === 0) {
@@ -476,9 +486,9 @@ export class WebsocketConnection {
    * Implements automatic reconnection for any non-intentional close (anything other than
    * 1000 Normal Closure). This includes 1001 Going Away, 1011 Internal Error, 1012 Service
    * Restart, 1013 Try Again Later, 1006 Abnormal Closure, and other server-initiated codes.
-   * Reconnection only occurs when URI APIs are still registered. Shows user notifications
+   * Reconnection only occurs when listeners are still registered. Shows user notifications
    * after {@link RECONNECTION_CONFIG.NOTIFICATION_THRESHOLD} failed attempts.
-   * Cleans up the connection if no URI APIs remain. Logs the close event to Datadog RUM.
+   * Cleans up the connection if no listeners remain. Logs the close event via the custom logger if configured.
    *
    * @param event - The WebSocket close event containing code, reason, and whether the close was clean
    */
@@ -511,7 +521,7 @@ export class WebsocketConnection {
    *
    * Sets up offline detection, dismisses reconnection notifications, shows success message
    * for recovered connections (only if {@link RECONNECTION_CONFIG.NOTIFICATION_THRESHOLD}
-   * was exceeded), resets reconnection counter, notifies all URI APIs, flushes cached
+   * was exceeded), resets reconnection counter, notifies all listeners, flushes cached
    * messages, and initiates the heartbeat ping sequence.
    */
   private handleOpen = () => {
@@ -549,9 +559,9 @@ export class WebsocketConnection {
   /**
    * Handles incoming WebSocket messages.
    *
-   * Routes messages to appropriate URI APIs based on the message URI.
+   * Routes messages to matching listeners: subscription APIs by URI, message APIs by pending request URI.
    * Special handling for 'ping' messages to maintain heartbeat.
-   * Dispatches error-method messages to URI API error handlers.
+   * Dispatches error-method messages to listener error handlers.
    *
    * @param event - The WebSocket message event containing JSON data
    */
@@ -611,7 +621,7 @@ export class WebsocketConnection {
 
   /**
    * Handles WebSocket error events.
-   * Logs the error to Datadog RUM and notifies all registered URI APIs.
+   * Logs the error via the custom logger if configured and notifies all registered listeners.
    *
    * @param event - The WebSocket error event
    */
@@ -655,7 +665,7 @@ export class WebsocketConnection {
   /**
    * Handles browser going offline.
    *
-   * Notifies all URI APIs of the closure, tears down the socket, and sets up
+   * Notifies all listeners of the closure, tears down the socket, and sets up
    * a listener to reconnect when the browser comes back online.
    */
   private handleOffline = () => {
@@ -718,8 +728,8 @@ export class WebsocketConnection {
   };
 
   /**
-   * Schedules a timeout to detect missing pong. If no pong arrives, force-closes
-   * the socket to trigger reconnection.
+   * Schedules a timeout to detect missing pong. If no pong arrives within
+   * {@link HEARTBEAT_CONFIG.PONG_TIMEOUT_MS}, force-closes the socket to trigger reconnection.
    */
   private schedulePongTimeout = () => {
     this.clearPongTimeout();
@@ -736,7 +746,8 @@ export class WebsocketConnection {
   };
 
   /**
-   * Schedules the next heartbeat ping after the configured interval.
+   * Schedules the next heartbeat ping after the configured interval (40 seconds).
+   * @see {@link getPingTime}
    */
   private schedulePing = () => {
     this.pingTimeOut = setTimeout(() => {
@@ -746,6 +757,8 @@ export class WebsocketConnection {
 
   /**
    * Serializes a message with a unique correlation ID for WebSocket transmission.
+   * @param message - The message to serialize
+   * @returns JSON string for WebSocket send
    */
   private serializeMessage = (message: SendMessage<string, string, any>): string => {
     return JSON.stringify({ ...message, correlation: uuidv4() });

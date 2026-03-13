@@ -90,7 +90,6 @@ export class WebsocketMessageApi implements WebsocketListener {
     return this._options.key;
   }
 
-  /** WebSocket URL for Datadog tracking. */
   public get url(): string {
     return this._options.url;
   }

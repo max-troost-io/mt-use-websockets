@@ -94,7 +94,6 @@ export class WebsocketSubscriptionApi<TData = unknown, TBody = unknown> implemen
     return this._options.uri;
   }
 
-  /** WebSocket URL for Datadog tracking. */
   public get url(): string {
     return this._options.url;
   }

@@ -4,11 +4,6 @@ A robust WebSocket connection manager with automatic reconnection, heartbeat mon
 
 ## 📚 Navigation
 
-### External Links
-
-- **[Package README](../../README.md)** — Package overview and quick start
-- **[Mono-Fleet Root](../../../../README.md)** — Return to workspace overview
-
 ### Internal Sections
 
 - [Features](#features)
@@ -17,6 +12,7 @@ A robust WebSocket connection manager with automatic reconnection, heartbeat mon
 - [Message Flow](#message-flow)
 - [URI API Lifecycle](#uri-api-lifecycle)
 - [Usage Examples](#usage-examples)
+- [App-Level Setup](#app-level-setup)
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
 - [Dependencies](#dependencies)
@@ -34,7 +30,6 @@ A robust WebSocket connection manager with automatic reconnection, heartbeat mon
 - **Online/Offline Detection**: Browser connectivity change handling
 - **Two API Types**: **Subscription** (streaming) and **Message** (request/response)
 - **User Notifications**: Status updates via snackbar notifications
-- **Monitoring**: Datadog RUM tracking for all events
 
 ## Architecture Overview
 
@@ -126,8 +121,8 @@ classDiagram
 
     class WebsocketMessageApi {
         +key: string
-        +sendMessage(uri, body)
-        +sendMessageNoWait(uri, body)
+        +sendMessage(uri, method, body?, options?)
+        +sendMessageNoWait(uri, method, body?)
         +registerHook(id)
         +unregisterHook(id, callback)
         +disconnect(callback)
@@ -227,8 +222,7 @@ sequenceDiagram
     participant Server
 
     Component->>Hook: useWebsocketSubscription(options)
-    Hook->>Hook: useWebsocketUrl(options.url)
-    Hook->>SubApi: createWebsocketUriApi(key, options)
+    Hook->>SubApi: createWebsocketSubscriptionApi(key, options)
     Hook->>Connection: findOrCreateWebsocketConnection(url)
     Hook->>Connection: addListener(SubApi)
     Connection->>Socket: new WebSocket(url)
@@ -264,8 +258,8 @@ sequenceDiagram
     participant Socket as WebSocket
     participant Server
 
-    Component->>MsgApi: sendMessage(uri, body)
-    MsgApi->>Socket: POST message with correlation ID
+    Component->>MsgApi: sendMessage(uri, method, body?)
+    MsgApi->>Socket: Message with correlation ID
     Socket->>Server: message
 
     Server-->>Socket: response (same correlation)
@@ -290,7 +284,7 @@ sequenceDiagram
     Connection->>Connection: reconnectTries++
     Connection->>Connection: Calculate backoff time
 
-    alt reconnectTries > 10
+    alt reconnectTries >= NOTIFICATION_THRESHOLD (10)
         Connection->>User: Show error notification
     end
 
@@ -302,9 +296,11 @@ sequenceDiagram
         Browser-->>Connection: online event
     end
 
-    alt reconnectTries > 10
+    alt reconnectTries >= NOTIFICATION_THRESHOLD (10)
         Connection->>User: Show reconnecting notification
     end
+
+    Note over Connection: If reconnectTries >= 20, show max-retries notification and stop (no new WebSocket)
 
     Connection->>Socket: new WebSocket(url)
 
@@ -366,7 +362,7 @@ sequenceDiagram
     participant Connection as WebsocketConnection
     participant Socket as WebSocket
 
-    Hook->>SubApi: createWebsocketUriApi(key, options)
+    Hook->>SubApi: createWebsocketSubscriptionApi(key, options)
     Hook->>Connection: addListener(SubApi)
     Hook->>SubApi: registerHook(id)
     SubApi->|if socket open| SubApi: onOpen()
@@ -465,7 +461,6 @@ function VoyageList() {
     key: 'voyages-list',
     url: '/api',
     uri: '/api/voyages',
-    secretToken: 'secret-auth-token',
     body: { status: 'active' },
     onMessage: ({ data }) => console.log('Received:', data),
     onSubscribe: ({ uri }) => console.log('Subscribed to:', uri)
@@ -565,10 +560,12 @@ interface WebsocketSubscriptionStore<TData> {
 | Setting                  | Value                   | Description                                            |
 | ------------------------ | ----------------------- | ------------------------------------------------------ |
 | Ping Interval            | 40 seconds              | Heartbeat ping frequency                               |
+| Pong Timeout             | 10 seconds              | Time to wait for pong before considering connection dead |
 | Connection Cleanup Delay | 3s (prod) / 10ms (test) | Delay before closing empty connection                  |
 | Hook Removal Delay       | 200ms                   | Delay before unsubscribing when last hook removed      |
 | Default Enabled          | true                    | Default enabled state for URI APIs                     |
 | Message Response Timeout | 10 seconds              | Default timeout for `sendMessage` (Message API)        |
+| Max Retry Attempts       | 20                      | Stop auto-reconnect after this many attempts           |
 
 ### Subscription Behavior
 
@@ -584,11 +581,11 @@ Subscriptions automatically subscribe when the WebSocket connection opens.
 
 ### Notification Threshold
 
-User notifications are only shown after **10 failed reconnection attempts** to prevent spam during brief network interruptions.
+User notifications are only shown after **10 failed reconnection attempts** to prevent spam during brief network interruptions. Reconnection stops after **20 attempts** (~18 minutes); users can retry manually via the notification action.
 
 ## Events and Monitoring
 
-All WebSocket events are logged to Datadog RUM:
+WebSocket events can be logged by calling `WebsocketConnection.setCustomLogger` at app startup.
 
 ### Connection-Level Events
 - `ws-connect`: Connection initiated
@@ -608,7 +605,7 @@ All WebSocket events are logged to Datadog RUM:
 
 #### `useWebsocketSubscription<TData, TBody>(options): WebsocketSubscriptionApiPublic`
 
-Manages a WebSocket subscription with reactive TanStack Store integration. Creates or reuses a `WebsocketSubscriptionApi` singleton per key. The WebSocket URL is generated from `options.url` using `useWebsocketUrl` (auth context).
+Manages a WebSocket subscription with reactive TanStack Store integration. Creates or reuses a `WebsocketSubscriptionApi` singleton per key. The WebSocket URL comes from `options.url` (apps typically build the full URL from auth context).
 
 #### `useWebsocketSubscriptionByKey<TData>(key): Store<WebsocketSubscriptionStore<TData>>`
 
@@ -616,7 +613,7 @@ Returns the store of a subscription by key. Use when a parent creates the subscr
 
 #### `useWebsocketMessage<TData, TBody>(options): WebsocketMessageApiPublic`
 
-Manages a WebSocket Message API for request/response messaging. Use for one-off commands (validate, modify, mark read). Provides `sendMessage(uri, method?, body?, options?)` and `sendMessageNoWait(uri, method?, body?)`.
+Manages a WebSocket Message API for request/response messaging. Use for one-off commands (validate, modify, mark read). Provides `sendMessage(uri, method, body?, options?)` and `sendMessageNoWait(uri, method, body?)`.
 
 ### WebsocketConnection Class
 
@@ -633,7 +630,7 @@ Manages a WebSocket Message API for request/response messaging. Use for one-off 
 - `replaceUrl(newUrl: string): Promise<void>`
   - Replaces the URL and re-establishes the connection
 - `reconnect(): void`
-  - Triggers reconnection (e.g. when auth context changes)
+  - Triggers reconnection. Called by `websocketConnectionsReconnect()` when `useReconnectWebsocketConnections` (from `@mono-fleet/common-components`) detects region/role change
 - `handleClose(event: CloseEvent): Promise<void>`
   - Handles close events (public for testing)
 
@@ -666,10 +663,8 @@ Manages a WebSocket Message API for request/response messaging. Use for one-off 
 
 #### Public Methods
 
-- `sendMessage(uri, body?, options?): Promise<TData>` — Sends and waits for response (short form)
-- `sendMessage(uri, method, body?, options?): Promise<TData>` — Full form with explicit method
-- `sendMessageNoWait(uri, body?): void` — Fire-and-forget (short form)
-- `sendMessageNoWait(uri, method, body?): void` — Fire-and-forget (full form)
+- `sendMessage(uri, method, body?, options?): Promise<TData>` — Sends and waits for response; `options.timeout` overrides default
+- `sendMessageNoWait(uri, method, body?): void` — Fire-and-forget
 - `reset(): void` — Cancels pending requests
 - `registerHook(id: string): void` — Registers a hook
 - `unregisterHook(id: string, onRemove: () => void): void` — Unregisters; calls `onRemove` when last hook
@@ -685,9 +680,9 @@ Manages a WebSocket Message API for request/response messaging. Use for one-off 
 
 These functions are used internally by the hooks and are not exported from the package:
 
-- `findOrCreateWebsocketConnection(key, url)` — Gets or creates connection singleton
+- `findOrCreateWebsocketConnection(key, url)` — Gets or creates connection singleton (key = URL path)
 - `getExistingWebsocketConnection(key)` — Gets existing connection
-- `createWebsocketUriApi(key, options)` — Creates or returns WebsocketSubscriptionApi singleton
+- `createWebsocketSubscriptionApi(key, options)` — Creates or returns WebsocketSubscriptionApi singleton
 - `createWebsocketMessageApi(key, options)` — Creates or returns WebsocketMessageApi singleton
 - `getWebsocketUriApiByKey(key)` — Retrieves subscription API by key
 - `getWebsocketMessageApiByKey(key)` — Retrieves message API by key
@@ -697,9 +692,7 @@ These functions are used internally by the hooks and are not exported from the p
 
 - `@tanstack/react-store`: Reactive state management
 - `@tanstack/store`: Core store implementation
-- `@datadog/browser-rum`: Monitoring and logging
 - `@mono-fleet/common-utils`: Utility functions (wait)
-- `@mono-fleet/iam-provider`: Authentication context for URL generation
 - `notistack`: User notifications
 - `uuid`: Correlation ID generation
 - `fast-equals`: Deep equality comparison
