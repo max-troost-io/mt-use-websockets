@@ -1,83 +1,177 @@
-# @max-troost-io/use-websocket
+# @maxtroost/use-websocket
 
 A robust WebSocket connection management package for React applications with automatic reconnection, heartbeat monitoring, URI-based message routing, and React integration via TanStack Store.
 
 ## Installation
 
 ```bash
-npm install @max-troost-io/use-websocket
+npm install @maxtroost/use-websocket
 ```
 
-## 📚 Navigation
-
-### Internal Sections
-
-- [Features & Purpose](#-features--purpose)
-- [Code Structure](#-code-structure)
-- [Data Flow & Architecture](#-data-flow--architecture)
-- [Key Behaviors](#-key-behaviors)
-- [Usage & Integration](#-usage--integration)
-- [Testing Strategy](#-testing-strategy)
-- [Troubleshooting & Debugging](#-troubleshooting--debugging)
-- [Dependencies](#-dependencies)
+**Peer dependencies:** React 18+, React DOM 18+. The package uses `notistack` for reconnection notifications — wrap your app in `SnackbarProvider` from `notistack` if you want users to see connection status toasts.
 
 ---
 
-## 🎯 Features & Purpose
+## Quick Start
 
-This package provides a comprehensive WebSocket solution for React applications that require real-time data streaming and request/response messaging over a single connection.
+```tsx
+import { useWebsocketSubscription } from "@maxtroost/use-websocket";
+import { useStore } from "@tanstack/react-store";
 
-### Problems Solved
+function LiveNotifications() {
+  const api = useWebsocketSubscription<Notification[]>({
+    key: "notifications",
+    url: "wss://api.example.com/ws",
+    uri: "/notifications",
+  });
 
-- **Duplicate connections**: Prevents multiple WebSocket connections to the same URL
-- **Stale connections**: Detects and recovers from silent connection failures via heartbeat
-- **Reconnection complexity**: Handles reconnection with exponential backoff and browser online/offline detection
-- **Subscription sharing**: Multiple components can share the same subscription via a unique key
-- **Auth-aware URLs**: WebSocket URLs are built from the current auth context (region, role, user)
+  const notifications = useStore(api.store, (s) => s.message);
+  const loading = useStore(api.store, (s) => s.pendingSubscription);
 
-### Key Features
-
-| Feature                      | Description                                                                                              |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Singleton Connection**     | One connection per URL shared across all hooks                                                           |
-| **Key-Based API Management** | Subscription and Message APIs identified by unique keys; components with the same key share the instance |
-| **Automatic Reconnection**   | Three-phase exponential backoff (4s → 30s → 90s)                                                         |
-| **Heartbeat Monitoring**     | Ping/pong every 40 seconds to detect stale connections                                                   |
-| **URI-Based Routing**        | Multiple subscriptions over a single connection                                                          |
-| **React Integration**        | TanStack Store for reactive data updates                                                                 |
-| **Online/Offline Detection** | Browser connectivity change handling                                                                     |
-| **Two API Types**            | **Subscription** for streaming data; **Message** for request/response commands                           |
-
-### Target Users
-
-- **Developers** integrating real-time data (voyages, rotations, notifications) into React apps
-- **Applications** using `@mono-fleet/iam-provider` for region-based authentication
+  if (loading) return <div>Connecting...</div>;
+  return (
+    <ul>
+      {notifications?.map((n) => (
+        <li key={n.id}>{n.text}</li>
+      ))}
+    </ul>
+  );
+}
+```
 
 ---
 
-## 🏗️ Code Structure
+## Examples
 
-```
-packages/use-websocket/
-├── src/
-│   ├── index.ts                    # Public exports
-│   └── lib/
-│       ├── WebsocketHook.ts        # React hooks (useWebsocketSubscription, useWebsocketMessage, useWebsocketSubscriptionByKey)
-│       ├── WebsocketConnection.ts  # Connection lifecycle, reconnection, heartbeat
-│       ├── WebsocketSubscriptionApi.ts  # Streaming subscription per URI
-│       ├── WebsocketMessageApi.ts  # Request/response messaging (no subscription)
-│       ├── websocketStores.ts      # Global TanStack stores (connections, listeners)
-│       ├── websocketStores.helpers.ts  # findOrCreateWebsocketConnection, createWebsocketSubscriptionApi, etc.
-│       ├── types.ts                # Types, options, store shapes
-│       ├── constants.ts            # Timing, close codes, defaults
-│       ├── WebsocketConnection.helpers.ts  # Reconnection, ping, notifications
-│       └── WEBSOCKET_CONNECTION.md # Detailed architecture and flows
-├── README.md
-├── CHART.md                        # Mermaid flow diagrams
-└── package.json
+### Subscription (Streaming Data)
+
+Subscribe to a URI and receive streaming data via a reactive TanStack Store.
+
+```tsx
+import { useWebsocketSubscription } from "@maxtroost/use-websocket";
+import { useStore } from "@tanstack/react-store";
+
+interface Voyage {
+  id: string;
+  name: string;
+  status: string;
+}
+
+function VoyageList() {
+  const voyageApi = useWebsocketSubscription<Voyage[], { status: string }>({
+    key: "voyages-list",
+    url: "wss://api.example.com/ws",
+    uri: "/api/voyages",
+    body: { status: "active" },
+  });
+
+  const voyages = useStore(voyageApi.store, (s) => s.message);
+  const pending = useStore(voyageApi.store, (s) => s.pendingSubscription);
+  const connected = useStore(voyageApi.store, (s) => s.connected);
+
+  if (pending) return <Skeleton />;
+  return (
+    <div>
+      {!connected && <span>Reconnecting...</span>}
+      {voyages?.map((v) => (
+        <div key={v.id}>{v.name}</div>
+      ))}
+    </div>
+  );
+}
 ```
 
-### Component Hierarchy
+### Access Store by Key (Child Components)
+
+When a parent creates the subscription, children can access the same store by key.
+
+```tsx
+import { useWebsocketSubscriptionByKey } from "@maxtroost/use-websocket";
+import { useStore } from "@tanstack/react-store";
+
+function VoyageCount() {
+  const voyagesStore = useWebsocketSubscriptionByKey<Voyage[]>("voyages-list");
+  const voyages = useStore(voyagesStore, (s) => s.message);
+  return <div>Total: {voyages?.length ?? 0}</div>;
+}
+```
+
+### Message API (Request/Response)
+
+For one-off commands (validate, modify, mark read) — send a message and optionally await a response.
+
+```tsx
+import { useWebsocketMessage } from "@maxtroost/use-websocket";
+
+function VoyageActions() {
+  const api = useWebsocketMessage<ValidationResult, FormValues>({
+    key: "voyages/modify",
+    url: "wss://api.example.com/ws",
+    responseTimeoutMs: 5000,
+  });
+
+  const handleValidate = async () => {
+    const result = await api.sendMessage(
+      "voyages/modify/validate",
+      "post",
+      formValues
+    );
+    if (result.valid) {
+      // proceed
+    }
+  };
+
+  const handleMarkRead = () => {
+    api.sendMessageNoWait(`notifications/${id}/read`, "post");
+  };
+
+  return (
+    <>
+      <button onClick={handleValidate}>Validate</button>
+      <button onClick={handleMarkRead}>Mark Read</button>
+    </>
+  );
+}
+```
+
+### Conditional Subscription (enabled)
+
+Disable the subscription when the user is not authenticated or when a feature flag is off.
+
+```tsx
+function VoyageList({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const api = useWebsocketSubscription<Voyage[]>({
+    key: "voyages-list",
+    url: "wss://api.example.com/ws",
+    uri: "/api/voyages",
+    enabled: isAuthenticated,
+  });
+  // ...
+}
+```
+
+### Lifecycle Callbacks
+
+```tsx
+const api = useWebsocketSubscription<Voyage[]>({
+  key: "voyages",
+  url: "wss://api.example.com/ws",
+  uri: "/api/voyages",
+  onSubscribe: ({ uri }) => console.log("Subscribed to", uri),
+  onMessage: ({ data }) => console.log("Received", data),
+  onError: (error) => {
+    if (error.type === "transport") console.error("Connection error", error.event);
+  },
+  onMessageError: (error) => {
+    if (error.type === "server") console.error("Server error", error.message);
+  },
+  onClose: (event) => console.log("Connection closed", event.code),
+});
+```
+
+---
+
+## Component Hierarchy
 
 ```mermaid
 graph TB
@@ -110,7 +204,7 @@ graph TB
 
 ---
 
-## 🔄 Data Flow & Architecture
+## Data Flow & Architecture
 
 ### Choosing the Right Hook
 
@@ -172,7 +266,7 @@ sequenceDiagram
 
 ---
 
-## ⚙️ Key Behaviors
+## Key Behaviors
 
 ### Subscription Behavior
 
@@ -182,12 +276,12 @@ Subscriptions automatically subscribe when the WebSocket connection opens.
 
 ```typescript
 interface WebsocketSubscriptionStore<TData> {
-  message: TData | undefined; // Latest data from server
-  subscribed: boolean; // Subscription confirmed
-  pendingSubscription: boolean; // Subscribe sent, waiting for first response (for loading UI)
+  message: TData | undefined;       // Latest data from server
+  subscribed: boolean;             // Subscription confirmed
+  pendingSubscription: boolean;   // Subscribe sent, waiting for first response (for loading UI)
   subscribedAt: number | undefined;
   receivedAt: number | undefined;
-  connected: boolean; // WebSocket open
+  connected: boolean;             // WebSocket open
   messageError: WebsocketTransportError | undefined;
   serverError: WebsocketServerError<unknown> | undefined;
 }
@@ -205,95 +299,49 @@ User notifications are shown after 10 failed attempts. Reconnection stops after 
 
 ---
 
-## 🔧 Usage & Integration
+## Options Reference
 
-### Subscription (Streaming Data)
+### WebsocketSubscriptionOptions
 
-```typescript
-import { useWebsocketSubscription } from "@max-troost-io/use-websocket";
-import { useStore } from "@tanstack/react-store";
+| Option | Type | Required | Default | Description |
+| ------ | ---- | -------- | ------- | ----------- |
+| `key` | `string` | Yes | — | Unique identifier. Components with the same key share the API. Used by `useWebsocketSubscriptionByKey` to access the store. |
+| `url` | `string` | Yes | — | Base WebSocket URL (e.g. `wss://api.example.com/ws`). One connection per URL. |
+| `uri` | `string` | Yes | — | URI endpoint for this subscription. Incoming messages are routed by URI. |
+| `body` | `TBody` | No | — | Optional payload sent with the subscription. |
+| `enabled` | `boolean` | No | `true` | When `false`, disconnects the listener and removes it from the connection. |
+| `method` | `string` | No | — | Optional HTTP-like method for custom messages sent via `sendMessage`. |
+| `onSubscribe` | `(props: { uri: string; body?: TBody; uriApi }) => void` | No | — | Called when the subscription is successful. |
+| `onMessage` | `(props: { data: TData; uriApi }) => void` | No | — | Called when a message is received for this URI. |
+| `onError` | `(error: WebsocketTransportError) => void` | No | — | Called on WebSocket transport errors (connection failure, network issues). |
+| `onMessageError` | `(error: WebsocketServerError<TBody>) => void` | No | — | Called when the server sends an error message (method `error`, `conflict`, or `exception`). |
+| `onClose` | `(event: CloseEvent) => void` | No | — | Called when the WebSocket connection closes. |
 
-function VoyageList() {
-  const voyageApi = useWebsocketSubscription<Voyage[], VoyageFilters>({
-    key: "voyages-list",
-    url: "/api",
-    uri: "/api/voyages",
-    body: { status: "active" },
-  });
+### WebsocketMessageOptions
 
-  const voyages = useStore(voyageApi.store, (s) => s.message);
-  const pending = useStore(voyageApi.store, (s) => s.pendingSubscription);
+| Option | Type | Required | Default | Description |
+| ------ | ---- | -------- | ------- | ----------- |
+| `key` | `string` | Yes | — | Unique identifier. Components with the same key share the Message API. |
+| `url` | `string` | Yes | — | Base WebSocket URL. |
+| `enabled` | `boolean` | No | `true` | When `false`, disconnects. `sendMessage` rejects; `sendMessageNoWait` is a no-op. |
+| `responseTimeoutMs` | `number` | No | `10000` | Default timeout (ms) for `sendMessage`. Can be overridden per call via `sendMessage(uri, method, body?, { timeout })`. |
+| `onError` | `(error: WebsocketTransportError) => void` | No | — | Called on transport errors. |
+| `onMessageError` | `(error: WebsocketServerError) => void` | No | — | Called on server error messages. |
+| `onClose` | `(event: CloseEvent) => void` | No | — | Called when the connection closes. |
 
-  if (pending) return <Skeleton />;
-  return <div>{/* Render voyages */}</div>;
-}
-```
+### sendMessage Options
 
-### Access Store by Key (Child Components)
-
-```typescript
-import { useWebsocketSubscriptionByKey } from "@max-troost-io/use-websocket";
-import { useStore } from "@tanstack/react-store";
-
-function VoyageCount() {
-  const voyagesStore = useWebsocketSubscriptionByKey<Voyage[]>("voyages-list");
-  const voyages = useStore(voyagesStore, (s) => s.message);
-  return <div>Total: {voyages?.length ?? 0}</div>;
-}
-```
-
-### Message API (Request/Response)
+| Option | Type | Description |
+| ------ | ---- | ----------- |
+| `timeout` | `number` | Override the default response timeout for this call (ms). |
 
 ```typescript
-import { useWebsocketMessage } from "@max-troost-io/use-websocket";
-
-function VoyageActions() {
-  const api = useWebsocketMessage<ModifyVoyageUim, ModifyVoyageUim>({
-    key: "voyages/modify",
-    url: "/api",
-    responseTimeoutMs: 5000,
-  });
-
-  const handleValidate = async () => {
-    const result = await api.sendMessage(
-      "voyages/modify/validate",
-      "post",
-      formValues
-    );
-    // ...
-  };
-
-  const handleMarkRead = () => {
-    api.sendMessageNoWait(`notifications/${id}/read`, "post");
-  };
-}
+await api.sendMessage("/api/command", "post", body, { timeout: 3000 });
 ```
-
-### Options Reference
-
-#### WebsocketSubscriptionOptions
-
-| Option                                                             | Type      | Description                                                            |
-| ------------------------------------------------------------------ | --------- | ---------------------------------------------------------------------- |
-| `key`                                                              | `string`  | Unique identifier; components with same key share the API              |
-| `url`                                                              | `string`  | Base WebSocket path (full URL; apps typically build from auth context) |
-| `uri`                                                              | `string`  | URI endpoint for this subscription                                     |
-| `body`                                                             | `TBody`   | Optional payload for subscription                                      |
-| `enabled`                                                          | `boolean` | When `false`, disconnects (default: `true`)                            |
-| `onMessage`, `onSubscribe`, `onError`, `onMessageError`, `onClose` | callbacks | Lifecycle callbacks                                                    |
-
-#### WebsocketMessageOptions
-
-| Option              | Type      | Description                                        |
-| ------------------- | --------- | -------------------------------------------------- |
-| `key`               | `string`  | Unique identifier                                  |
-| `url`               | `string`  | Base WebSocket path                                |
-| `enabled`           | `boolean` | When `false`, disconnects                          |
-| `responseTimeoutMs` | `number`  | Default timeout for `sendMessage` (default: 10000) |
 
 ---
 
-## 🐛 Troubleshooting & Debugging
+## Troubleshooting & Debugging
 
 ### Common Issues
 
@@ -301,15 +349,15 @@ function VoyageActions() {
 
 - **Symptoms**: `message` stays `undefined`, `pendingSubscription` remains `true`
 - **Possible causes**: Wrong `uri`, server not sending to that URI, connection not open
-- **Debugging**: Check `connected` in store; verify server logs for incoming subscribe; ensure `useWebsocketConnectionConfig` and `useReconnectWebsocketConnections` are called at app root inside auth provider
+- **Debugging**: Check `connected` in store; verify server logs for incoming subscribe; ensure the WebSocket URL is correct
 - **Solution**: Confirm `uri` matches server route; check network tab for WebSocket frames
 
 #### Connection Drops Repeatedly
 
 - **Symptoms**: Frequent reconnects, notifications after 10 attempts
 - **Possible causes**: Auth token expiry, CORS, wrong URL, server rejecting connection
-- **Debugging**: `WebsocketConnection.setCustomLogger` to log events; check `connectionFailed` callback (token refresh triggered after 5 retries)
-- **Solution**: Pass WebSocket secret via `useWebsocketConnectionConfig` for local dev; verify auth context provides valid region/role for URL construction
+- **Debugging**: Use `WebsocketConnection.setCustomLogger` to log events
+- **Solution**: Verify the WebSocket URL and auth; check server logs for rejection reasons
 
 #### Child Component Gets Empty Store
 
@@ -321,17 +369,17 @@ function VoyageActions() {
 ### Debugging Tools
 
 - **Browser DevTools**: Network tab → WS filter for WebSocket frames
-- **Debugging**: `WebsocketConnection.setCustomLogger` to log events; check `connectionFailed` callback (token refresh triggered after 5 retries)
+- **Custom logger**: `WebsocketConnection.setCustomLogger({ log: (level, event, data) => console.log(level, event, data) })`
 - **Store inspection**: `useStore(api.store)` to read full state
 
 ### Error Types
 
-- **WebsocketTransportError**: Connection failure, network issues (`error.type === 'transport'`)
-- **WebsocketServerError**: Server-sent error message (`error.type === 'server'`, body in `error.message`)
+- **WebsocketTransportError**: Connection failure, network issues (`error.type === 'transport'`, raw `Event` in `error.event`)
+- **WebsocketServerError**: Server-sent error message (`error.type === 'server'`, parsed body in `error.message`)
 
 ---
 
-## 📦 Dependencies
+## Dependencies
 
 | Dependency              | Purpose                                  |
 | ----------------------- | ---------------------------------------- |
@@ -344,7 +392,22 @@ function VoyageActions() {
 
 ---
 
+## API
+
+| Export | Description |
+| ------ | ----------- |
+| `useWebsocketSubscription` | Subscribe to a URI and receive streaming data via a reactive store |
+| `useWebsocketSubscriptionByKey` | Access the store of a subscription created elsewhere (by key) |
+| `useWebsocketMessage` | Send request/response messages to any URI |
+| `WebsocketConnection` | Low-level connection class; `setCustomLogger` for debugging |
+| `websocketConnectionsReconnect` | Trigger reconnection on all connections (e.g. when auth URL changes) |
+| `ReadyState`, `WebsocketSubscriptionStore`, `WebsocketTransportError`, `WebsocketServerError` | Types |
+
+---
+
 ## Learn More
 
-- **[WEBSOCKET_CONNECTION.md](src/lib/WEBSOCKET_CONNECTION.md)** — Detailed architecture, class diagrams, connection lifecycle, URI API lifecycle, browser online/offline handling, full API reference
+For contributors and deeper architecture details:
+
+- **[WEBSOCKET_CONNECTION.md](src/lib/WEBSOCKET_CONNECTION.md)** — Connection lifecycle, class diagrams, URI API lifecycle, browser online/offline handling, full API reference
 - **[CHART.md](CHART.md)** — Mermaid flow diagrams for hooks, connection, and error flows
