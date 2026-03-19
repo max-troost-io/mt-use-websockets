@@ -2,7 +2,6 @@ import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
 import { deepEqual } from "fast-equals";
 import { useEffect, useId, useRef, useState } from "react";
-import { useIsomorphicLayoutEffect } from "usehooks-ts";
 import { WebsocketMessageApi } from "./WebsocketMessageApi";
 import { useWebsocketClient } from "./WebsocketProvider";
 import { WebsocketSubscriptionApi } from "./WebsocketSubscriptionApi";
@@ -15,6 +14,7 @@ import {
   WebsocketSubscriptionOptions,
   WebsocketSubscriptionStore,
 } from "./types";
+import { useIsomorphicLayoutEffect } from "./utils";
 import {
   createWebsocketMessageApi,
   createWebsocketSubscriptionApi,
