@@ -19,12 +19,17 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/index.ts"),
       name: "UseWebsocket",
-      fileName: "index",
-      formats: ["es"],
+      fileName: (format) =>
+        format === "es" ? "index.js" : "index.cjs",
+      formats: ["es", "cjs"],
     },
     outDir: "dist",
     sourcemap: true,
     rollupOptions: {
+      // Explicit named exports for CommonJS consumers (require / legacy bundlers).
+      output: {
+        exports: "named",
+      },
       external: [
         "react",
         "react-dom",
