@@ -213,7 +213,7 @@ function useWebsocketLifecycle(
  *   - `enabled`: Whether this subscription is enabled (default: true)
  *   - `body`: Optional payload for subscription or initial message
  *   - `onMessage`, `onSubscribe`, `onError`, `onMessageError`, `onClose`: Optional callbacks
- * @returns The {@link WebsocketSubscriptionApiPublic} instance. Use `useStore(api.store, (s) => s.message)` to read data reactively.
+ * @returns The {@link WebsocketSubscriptionApiPublic} instance. Use `useSelector(api.store, (s) => s.message)` to read data reactively.
  *
  * @example
  * ```typescript
@@ -224,11 +224,11 @@ function useWebsocketLifecycle(
  *   uri: '/api/voyages',
  *   body: { status: 'active' }
  * });
- * const voyages = useStore(voyageApi.store, (s) => s.message);
+ * const voyages = useSelector(voyageApi.store, (s) => s.message);
  *
  * // Or use useWebsocketSubscriptionByKey in children to access the same store
  * const voyagesStore = useWebsocketSubscriptionByKey<Voyage[]>('voyages-list');
- * const voyages = useStore(voyagesStore, (s) => s.message);
+ * const voyages = useSelector(voyagesStore, (s) => s.message);
  * ```
  *
  * ## Edge Cases
@@ -284,7 +284,7 @@ export function useWebsocketSubscription<TData = unknown, TBody = unknown>(
  *
  * // Child reads store by key
  * const voyagesStore = useWebsocketSubscriptionByKey<Voyage[]>('voyages-list');
- * const voyages = useStore(voyagesStore, (s) => s.message);
+ * const voyages = useSelector(voyagesStore, (s) => s.message);
  * ```
  *
  * @see {@link WebsocketSubscriptionStore} - Store shape
@@ -367,8 +367,7 @@ export const useWebsocketMessage = (
 /**
  * Selects a value from a WebSocket subscription store with reactive updates.
  *
- * A thin wrapper around {@link https://tanstack.com/store/latest/docs/framework/react/useStore | useStore}
- * from TanStack Store. The store type is inferred from the first argument, so the selector
+ * The store type is inferred from the first argument, so the selector
  * receives properly typed state (including `message: TData`) without explicit generics.
  *
  * Use this to subscribe to specific slices of subscription state and avoid re-renders when

@@ -465,8 +465,7 @@ sequenceDiagram
 ### Basic Subscription (Streaming Data)
 
 ```typescript
-import { useWebsocketSubscription } from '@mono-fleet/use-websocket';
-import { useStore } from '@tanstack/react-store';
+import { useWebsocketSubscription, useSelector } from '@mono-fleet/use-websocket';
 
 function VoyageList() {
   const voyageApi = useWebsocketSubscription<Voyage[], VoyageFilters>({
@@ -478,8 +477,8 @@ function VoyageList() {
     onSubscribe: ({ uri }) => console.log('Subscribed to:', uri)
   });
 
-  const voyages = useStore(voyageApi.store, (s) => s.message);
-  const pending = useStore(voyageApi.store, (s) => s.pendingSubscription);
+  const voyages = useSelector(voyageApi.store, (s) => s.message);
+  const pending = useSelector(voyageApi.store, (s) => s.pendingSubscription);
 
   if (pending) return <Skeleton />;
   return <div>{/* Render voyages */}</div>;
@@ -489,8 +488,7 @@ function VoyageList() {
 ### Accessing Store from Child Components
 
 ```typescript
-import { useWebsocketSubscription, useWebsocketSubscriptionByKey } from '@mono-fleet/use-websocket';
-import { useStore } from '@tanstack/react-store';
+import { useWebsocketSubscription, useWebsocketSubscriptionByKey, useSelector } from '@mono-fleet/use-websocket';
 
 // Parent: Creates the subscription
 function VoyageListContainer() {
@@ -502,11 +500,11 @@ function VoyageListContainer() {
   return <VoyageList />;
 }
 
-// Child: Accesses the store by key (no selector hook; use useStore with selector)
+// Child: Accesses the store by key (use useSelector with selector)
 function VoyageList() {
   const voyagesStore = useWebsocketSubscriptionByKey<Voyage[]>('voyages-list');
-  const voyages = useStore(voyagesStore, (s) => s.message);
-  const activeVoyages = useStore(voyagesStore, (s) =>
+  const voyages = useSelector(voyagesStore, (s) => s.message);
+  const activeVoyages = useSelector(voyagesStore, (s) =>
     (s.message ?? []).filter((v) => v.status === 'active')
   );
   return <div>{/* Render active voyages */}</div>;
@@ -515,7 +513,7 @@ function VoyageList() {
 // Child: Voyage count
 function VoyageCount() {
   const voyagesStore = useWebsocketSubscriptionByKey<Voyage[]>('voyages-list');
-  const count = useStore(voyagesStore, (s) => (s.message ?? []).length);
+  const count = useSelector(voyagesStore, (s) => (s.message ?? []).length);
   return <div>Total: {count}</div>;
 }
 ```
@@ -651,6 +649,10 @@ Manages a WebSocket subscription with reactive TanStack Store integration. Creat
 #### `useWebsocketSubscriptionByKey<TData>(key): Store<WebsocketSubscriptionStore<TData>>`
 
 Returns the store of a subscription by key. Use when a parent creates the subscription and children need to read data. Returns a fallback store (initial empty state) if the subscription does not exist yet.
+
+#### `useSelector<TStore, TResult>(store, selector): TResult`
+
+Selects a value from a WebSocket subscription store with reactive updates. Use with the store from `useWebsocketSubscription` or `useWebsocketSubscriptionByKey`. The selector receives typed state; re-renders when the selected value changes (shallow comparison).
 
 #### `useWebsocketMessage<TData, TBody>(options): WebsocketMessageApiPublic`
 

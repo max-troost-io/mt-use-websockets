@@ -61,8 +61,8 @@ import {
  *   onMessage: (data) => console.log('Received:', data)
  * });
  *
- * const data = useStore(api.store, (s) => s.message);
- * const isPending = useStore(api.store, (s) => s.pendingSubscription);
+ * const data = useSelector(api.store, (s) => s.message);
+ * const isPending = useSelector(api.store, (s) => s.pendingSubscription);
  * api.sendMessage({ method: 'refresh', body: { force: true } });
  * ```
  *
@@ -114,7 +114,7 @@ export class WebsocketSubscriptionApi<TData = unknown, TBody = unknown> implemen
    * Current data from the store.
    *
    * **Do not use in React components** — it does not trigger re-renders. Use
-   * `useStore(api.store, (s) => s.message)` for reactive updates.
+   * `useSelector(api.store, (s) => s.message)` for reactive updates.
    */
   public get data(): TData | undefined {
     return this._state.state.message;

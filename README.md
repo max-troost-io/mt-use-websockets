@@ -74,8 +74,7 @@ function App() {
 2. Use the hooks in your components:
 
 ```tsx
-import { useWebsocketSubscription } from "@maxtroost/use-websocket";
-import { useStore } from "@tanstack/react-store";
+import { useWebsocketSubscription, useSelector } from "@maxtroost/use-websocket";
 
 function LiveNotifications() {
   const api = useWebsocketSubscription<Notification[]>({
@@ -84,8 +83,8 @@ function LiveNotifications() {
     uri: "/notifications",
   });
 
-  const notifications = useStore(api.store, (s) => s.message);
-  const loading = useStore(api.store, (s) => s.pendingSubscription);
+  const notifications = useSelector(api.store, (s) => s.message);
+  const loading = useSelector(api.store, (s) => s.pendingSubscription);
 
   if (loading) return <div>Connecting...</div>;
   return (
@@ -120,6 +119,7 @@ function LiveNotifications() {
 | ------ | ----------- |
 | `useWebsocketSubscription` | Subscribe to a URI and receive streaming data via a reactive store |
 | `useWebsocketSubscriptionByKey` | Access the store of a subscription created elsewhere (by key) |
+| `useSelector` | Select a value from a subscription store with reactive updates |
 | `useWebsocketMessage` | Send request/response messages to any URI |
 | `WebsocketClient` | Client configuration; instantiate and pass to `WebsocketClientProvider`; `reconnectAllConnections()` for manual retry |
 | `WebsocketClientProvider` | Context provider; wrap your app to enable hooks |
@@ -135,8 +135,7 @@ function LiveNotifications() {
 Subscribe to a URI and receive streaming data via a reactive TanStack Store.
 
 ```tsx
-import { useWebsocketSubscription } from "@maxtroost/use-websocket";
-import { useStore } from "@tanstack/react-store";
+import { useWebsocketSubscription, useSelector } from "@maxtroost/use-websocket";
 
 interface Voyage {
   id: string;
@@ -152,9 +151,9 @@ function VoyageList() {
     body: { status: "active" },
   });
 
-  const voyages = useStore(voyageApi.store, (s) => s.message);
-  const pending = useStore(voyageApi.store, (s) => s.pendingSubscription);
-  const connected = useStore(voyageApi.store, (s) => s.connected);
+  const voyages = useSelector(voyageApi.store, (s) => s.message);
+  const pending = useSelector(voyageApi.store, (s) => s.pendingSubscription);
+  const connected = useSelector(voyageApi.store, (s) => s.connected);
 
   if (pending) return <Skeleton />;
   return (
@@ -173,12 +172,11 @@ function VoyageList() {
 When a parent creates the subscription, children can access the same store by key.
 
 ```tsx
-import { useWebsocketSubscriptionByKey } from "@maxtroost/use-websocket";
-import { useStore } from "@tanstack/react-store";
+import { useWebsocketSubscriptionByKey, useSelector } from "@maxtroost/use-websocket";
 
 function VoyageCount() {
   const voyagesStore = useWebsocketSubscriptionByKey<Voyage[]>("voyages-list");
-  const voyages = useStore(voyagesStore, (s) => s.message);
+  const voyages = useSelector(voyagesStore, (s) => s.message);
   return <div>Total: {voyages?.length ?? 0}</div>;
 }
 ```
