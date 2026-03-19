@@ -8,6 +8,9 @@ yarn.lock
 # Build output
 dist/
 
+# Coverage
+coverage/
+
 # IDE
 .idea/
 .vscode/
