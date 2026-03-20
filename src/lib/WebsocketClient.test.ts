@@ -68,11 +68,14 @@ describe('WebsocketClient', () => {
   describe('addListener and removeListener', () => {
     it('should add and remove listeners', () => {
       const client = new WebsocketClient({});
-      const subscription = new WebsocketSubscriptionApi({
-        url: mockUrl,
-        uri: '/api/test',
-        key: mockKey
-      });
+      const subscription = new WebsocketSubscriptionApi(
+        {
+          url: mockUrl,
+          uri: '/api/test',
+          key: mockKey
+        },
+        client
+      );
 
       client.addListener(subscription);
       expect(client.getListener(mockKey, 'subscription')).toBe(subscription);
@@ -85,11 +88,14 @@ describe('WebsocketClient', () => {
   describe('getListener', () => {
     it('should return subscription listener by key and type', () => {
       const client = new WebsocketClient({});
-      const subscription = new WebsocketSubscriptionApi({
-        url: mockUrl,
-        uri: '/api/test',
-        key: mockKey
-      });
+      const subscription = new WebsocketSubscriptionApi(
+        {
+          url: mockUrl,
+          uri: '/api/test',
+          key: mockKey
+        },
+        client
+      );
       client.addListener(subscription);
 
       expect(client.getListener(mockKey, 'subscription')).toBe(subscription);
@@ -117,11 +123,14 @@ describe('WebsocketClient', () => {
 
     it('should return undefined when type does not match', () => {
       const client = new WebsocketClient({});
-      const subscription = new WebsocketSubscriptionApi({
-        url: mockUrl,
-        uri: '/api/test',
-        key: mockKey
-      });
+      const subscription = new WebsocketSubscriptionApi(
+        {
+          url: mockUrl,
+          uri: '/api/test',
+          key: mockKey
+        },
+        client
+      );
       client.addListener(subscription);
 
       expect(client.getListener(mockKey, 'message')).toBeUndefined();

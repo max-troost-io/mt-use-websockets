@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WebsocketClient } from "./WebsocketClient";
 import { WebsocketSubscriptionApi } from "./WebsocketSubscriptionApi";
 import { INITIATOR_REMOVAL_DELAY_MS } from "./constants";
 import {
@@ -11,6 +12,7 @@ describe("WebsocketSubscriptionApi", () => {
   const mockUrl = "wss://test.example.com";
   const mockUri = "/api/test";
   const mockKey = "test-key";
+  const client = new WebsocketClient({});
   // mockSocket removed — onOpen no longer takes a socket parameter
 
   beforeEach(() => {
@@ -30,7 +32,7 @@ describe("WebsocketSubscriptionApi", () => {
         key: mockKey,
       };
 
-      const api = new WebsocketSubscriptionApi(options);
+      const api = new WebsocketSubscriptionApi(options, client);
 
       expect(api.key).toBe(mockKey);
       expect(api.uri).toBe(mockUri);
@@ -43,7 +45,7 @@ describe("WebsocketSubscriptionApi", () => {
         key: mockKey,
       };
 
-      const api = new WebsocketSubscriptionApi(options);
+      const api = new WebsocketSubscriptionApi(options, client);
 
       expect(api.options.enabled).toBe(true);
     });
@@ -55,7 +57,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       expect(api.isEnabled).toBe(true);
     });
@@ -66,7 +68,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: false,
-      });
+      }, client);
 
       expect(api.isEnabled).toBe(false);
     });
@@ -77,7 +79,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: true,
-      });
+      }, client);
 
       expect(api.isEnabled).toBe(true);
     });
@@ -89,7 +91,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       expect(api.store).toBeDefined();
       expect(api.store.state).toBeDefined();
@@ -103,7 +105,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const testData = { id: 1, name: "test" };
       api.onMessage(testData);
@@ -118,7 +120,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       expect(api.data).toBeUndefined();
     });
@@ -128,7 +130,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const testData = { id: 1, name: "test" };
       api.onMessage(testData);
@@ -141,7 +143,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onMessage({ version: 1 });
       expect(api.data).toEqual({ version: 1 });
@@ -157,7 +159,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const newOptions: WebsocketSubscriptionOptions = {
         url: mockUrl,
@@ -177,7 +179,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: true,
-      });
+      }, client);
 
       const subscribeSpy = vi.spyOn(api, "subscribe");
 
@@ -197,7 +199,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         body: { filter: "old" },
-      });
+      }, client);
 
       api.onOpen();
 
@@ -219,7 +221,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: false,
-      });
+      }, client);
 
       api.onOpen();
 
@@ -241,7 +243,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: true,
-      });
+      }, client);
 
       api.onOpen();
       api.subscribe();
@@ -265,7 +267,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -280,7 +282,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -298,7 +300,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.registerHook("hook-1");
 
@@ -318,7 +320,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.registerHook("hook-1");
       const onRemoveSpy = vi.fn();
@@ -340,7 +342,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.registerHook("hook-1");
       api.registerHook("hook-2");
@@ -357,7 +359,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const onRemoveSpy = vi.fn();
       api.disconnect(onRemoveSpy);
@@ -378,7 +380,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.registerHook("hook-1");
       api.subscribe();
@@ -402,7 +404,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.registerHook("hook-1");
       api.registerHook("hook-2");
@@ -423,7 +425,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.registerHook("hook-1");
       api.registerHook("hook-2");
@@ -449,7 +451,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onOpen();
       api.registerHook("hook-1");
@@ -472,7 +474,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -493,7 +495,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const onRemoveSpy = vi.fn();
       api.disconnect(onRemoveSpy);
@@ -510,7 +512,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onOpen();
 
@@ -528,7 +530,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const firstCallback = vi.fn();
       const secondCallback = vi.fn();
@@ -551,7 +553,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -571,7 +573,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: false,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -586,7 +588,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.setSendToConnection(vi.fn());
 
@@ -607,7 +609,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.setSendToConnection(vi.fn());
       api.registerHook("hook-1");
@@ -629,7 +631,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       // No sendToConnection set - should not throw
       expect(() => api.sendMessage({ method: "test" })).not.toThrow();
@@ -642,7 +644,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -661,7 +663,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -685,7 +687,7 @@ describe("WebsocketSubscriptionApi", () => {
         key: mockKey,
         onSubscribe: onSubscribeSpy,
         body: { filter: "test" },
-      });
+      }, client);
 
       api.subscribe({ filter: "test" });
 
@@ -702,7 +704,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: false,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -717,7 +719,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.setSendToConnection(vi.fn());
 
@@ -738,7 +740,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -759,7 +761,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -774,7 +776,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -795,7 +797,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const subscribeSpy = vi.spyOn(api, "subscribe");
 
@@ -809,7 +811,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const subscribeSpy = vi.spyOn(api, "subscribe");
 
@@ -826,7 +828,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const testData = { id: 1, name: "test" };
       api.onMessage(testData);
@@ -841,7 +843,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         onMessage: onMessageSpy,
-      });
+      }, client);
 
       const testData = { id: 1, name: "test" };
       api.onMessage(testData);
@@ -857,7 +859,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       expect(() => api.onMessage({ id: 1 })).not.toThrow();
     });
@@ -867,7 +869,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onMessage({ version: 1 });
       api.onMessage({ version: 2 });
@@ -884,7 +886,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         onError: onErrorSpy,
-      });
+      }, client);
 
       const errorEvent = new Event("error");
       const transportError: WebsocketTransportError = {
@@ -901,7 +903,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const errorEvent = new Event("error");
       const transportError: WebsocketTransportError = {
@@ -921,7 +923,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         onMessageError: onMessageErrorSpy,
-      });
+      }, client);
 
       const serverError: WebsocketServerError = {
         type: "server",
@@ -937,7 +939,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onOpen();
       api.subscribe();
@@ -956,7 +958,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const serverError: WebsocketServerError = {
         type: "server",
@@ -973,7 +975,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -997,7 +999,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         onClose: onCloseSpy,
-      });
+      }, client);
 
       const closeEvent = new CloseEvent("close", {
         code: 1000,
@@ -1013,7 +1015,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const closeEvent = new CloseEvent("close");
 
@@ -1027,7 +1029,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       // Establish connection and get some data
       api.onOpen();
@@ -1045,7 +1047,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onOpen();
       api.reset();
@@ -1061,7 +1063,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onMessage({ id: 1 });
 
@@ -1075,7 +1077,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.onOpen();
       api.registerHook("hook-1");
@@ -1098,7 +1100,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -1129,7 +1131,7 @@ describe("WebsocketSubscriptionApi", () => {
         onMessage: onMessageSpy,
         onSubscribe: onSubscribeSpy,
         onClose: onCloseSpy,
-      });
+      }, client);
 
       // Open connection
       api.onOpen();
@@ -1160,7 +1162,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       api.registerHook("hook-1");
       api.registerHook("hook-2");
@@ -1189,7 +1191,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         enabled: false,
-      });
+      }, client);
 
       api.onOpen();
 
@@ -1212,7 +1214,7 @@ describe("WebsocketSubscriptionApi", () => {
         uri: mockUri,
         key: mockKey,
         body: { filter: "active" },
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -1246,7 +1248,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
@@ -1274,7 +1276,7 @@ describe("WebsocketSubscriptionApi", () => {
         url: mockUrl,
         uri: mockUri,
         key: mockKey,
-      });
+      }, client);
 
       const sendSpy = vi.fn();
       api.setSendToConnection(sendSpy);
