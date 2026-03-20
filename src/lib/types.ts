@@ -329,8 +329,8 @@ export type WebsocketLoggerConnectionEvent =
   | WebsocketLoggerSubscriptionEvent
   | WebsocketLoggerSubscriptionSendMessageEvent;
 
-/** @internal */
-interface WebsocketLoggerCloseEvent {
+/** WebSocket connection closed — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerCloseEvent {
   /** WebSocket connection closed */
   type: "close";
   url: string;
@@ -339,33 +339,32 @@ interface WebsocketLoggerCloseEvent {
   wasClean: boolean;
   subscriptions: number;
 }
-/** @internal */
-interface WebsocketLoggerCleanupEvent {
-  /** Connection cleaned up (no listeners remain) */
+
+/** Connection cleaned up (no listeners remain) — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerCleanupEvent {
   type: "cleanup";
   url: string;
 }
 
-/** @internal */
-interface WebsocketLoggerOpenEvent {
-  /** WebSocket connection opened or connecting */
+/** WebSocket opened or connecting — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerOpenEvent {
   type: "open" | "connect";
   url: string;
   retries: number;
   uriApis: string[];
 }
-/** @internal */
-interface WebsocketLoggerMessageEvent {
-  /** Incoming message received */
+
+/** Incoming message received — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerMessageEvent {
   type: "message";
   uri: string;
   url: string;
   body: unknown;
   method: string;
 }
-/** @internal */
-interface WebsocketLoggerSendMessageEvent {
-  /** Outgoing message sent */
+
+/** Outgoing message sent — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerSendMessageEvent {
   type: "send-message";
   uri?: string;
   url: string;
@@ -373,17 +372,16 @@ interface WebsocketLoggerSendMessageEvent {
   method?: string;
 }
 
-/** @internal */
-interface WebsocketLoggerErrorEvent {
-  /** WebSocket transport error */
+/** WebSocket transport error — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerErrorEvent {
   type: "error";
   event: unknown;
   url: string;
   uriApis: string[];
 }
-/** @internal */
-interface WebsocketLoggerParseErrorEvent {
-  /** Failed to parse incoming message JSON */
+
+/** Failed to parse incoming message JSON — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerParseErrorEvent {
   type: "parse-error";
   error: unknown;
   url: string;
@@ -391,35 +389,32 @@ interface WebsocketLoggerParseErrorEvent {
   message: unknown;
 }
 
-/** @internal */
-interface WebsocketLoggerMessageErrorEvent {
-  /** Server sent error message (method: error, conflict, or exception) */
+/** Server sent error message (error / conflict / exception) — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerMessageErrorEvent {
   type: "message-error";
   uri: string;
   url: string;
   uriApis: string[];
   message: unknown;
 }
-/** @internal */
-interface WebsocketLoggerReconnectingEvent {
-  /** Reconnection attempt or max retries exceeded */
+
+/** Reconnection attempt or max retries exceeded — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerReconnectingEvent {
   type: "reconnecting" | "max-retries-exceeded";
   retries: number;
   url: string;
 }
 
-/** @internal */
-interface WebsocketLoggerInvalidMessageEvent {
-  /** Incoming message missing required structure (e.g. uri) */
+/** Incoming message missing required structure — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerInvalidMessageEvent {
   type: "invalid-message";
   url: string;
   uriApis: string[];
   message: unknown;
 }
 
-/** @internal */
-interface WebsocketLoggerRemoveListenerFromConnectionEvent {
-  /** Listener removed from connection */
+/** Listener removed from connection — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerRemoveListenerFromConnectionEvent {
   type: "connection:remove-listener";
   url: string;
   uri?: string;
@@ -427,9 +422,8 @@ interface WebsocketLoggerRemoveListenerFromConnectionEvent {
   uriApis?: string[];
 }
 
-/** @internal */
-interface WebsocketLoggerSubscriptionEvent {
-  /** Subscription disconnect attempt */
+/** Subscription lifecycle diagnostic — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerSubscriptionEvent {
   type:
     | "subscription:reset"
     | "subscription:disconnect-attempt"
@@ -438,17 +432,17 @@ interface WebsocketLoggerSubscriptionEvent {
   uri: string;
   key: string;
 }
-interface WebsocketLoggerSubscriptionSendMessageEvent {
-  /** Subscription disconnect attempt */
-  type: "subscription:send-message"|"subscription:queue-message";
+
+/** Subscription send/queue diagnostic — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerSubscriptionSendMessageEvent {
+  type: "subscription:send-message" | "subscription:queue-message";
   uri: string;
   key: string;
   message: SendMessage<string, string, unknown>;
 }
 
-/** @internal */
-interface WebsocketLoggerPongTimeoutEvent {
-  /** No pong received within heartbeat timeout */
+/** Heartbeat pong timeout — {@link WebsocketLoggerConnectionEvent} member. */
+export interface WebsocketLoggerPongTimeoutEvent {
   type: "pong-timeout";
   url: string;
 }
