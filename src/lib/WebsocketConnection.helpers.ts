@@ -153,7 +153,7 @@ export const isSocketOnline = (socket?: WebSocket): boolean => {
 /**
  * Creates a ping message for the WebSocket heartbeat mechanism.
  *
- * Format: `{ method: 'post', uri: 'ping', body: timestamp, correlation: uuid }`.
+ * Format: `{ method: 'post', uri: 'ping', body: timestamp }`.
  * The server should respond with a pong; missing pong triggers reconnection.
  *
  * @returns JSON string of the ping message
